@@ -1,0 +1,49 @@
+{
+  "name": "restaurant-os-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-ready Restaurant OS monorepo",
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"API,WEB\" -c \"cyan.bold,magenta.bold\" \"pnpm --filter @restaurant-os/api dev\" \"pnpm --filter @restaurant-os/web dev\"",
+    "dev:api": "pnpm --filter @restaurant-os/api dev",
+    "dev:web": "pnpm --filter @restaurant-os/web dev",
+    "build": "pnpm -r --filter=!@restaurant-os/monorepo build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "db:migrate": "pnpm --filter @restaurant-os/api db:migrate",
+    "db:migrate:down": "pnpm --filter @restaurant-os/api db:migrate:down",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22.13.4",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.0.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.1",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.0",
+    "vitest": "^3.0.5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

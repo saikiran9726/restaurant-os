@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+coverage
+playwright-report
+test-results
+.pnpm-store
+pnpm-lock.yaml
+*.d.ts
