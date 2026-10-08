@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -9,9 +9,12 @@ import {
   ArrowLeft,
   Sun,
   Moon,
+  Shield,
+  LogOut,
 } from 'lucide-react';
 import { ConnectionBanner } from '../../components/ConnectionBanner.js';
 import { useThemeStore } from '../../stores/useThemeStore.js';
+import { useAuthStore } from '../../stores/useAuthStore.js';
 import { IconButton } from '../../components/ui/Button.js';
 
 interface OwnerNavItem {
@@ -25,12 +28,20 @@ const navItems: OwnerNavItem[] = [
   { id: 'overview', label: 'Overview', path: '/owner', icon: LayoutDashboard },
   { id: 'sales', label: 'Live Sales', path: '/owner/sales', icon: TrendingUp },
   { id: 'menu', label: 'Menu Analytics', path: '/owner/menu', icon: UtensilsCrossed },
-  { id: 'staff', label: 'Staff & Tables', path: '/owner/staff', icon: Users2 },
+  { id: 'staff', label: 'Staff & Roles', path: '/owner/staff', icon: Users2 },
+  { id: 'audit', label: 'Audit Trail', path: '/owner/audit', icon: Shield },
   { id: 'settings', label: 'Settings', path: '/owner/settings', icon: Settings },
 ];
 
 export const OwnerLayout: React.FC = () => {
   const { resolvedTheme, toggleTheme } = useThemeStore();
+  const { logout, user } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-canvas text-content-primary">
@@ -51,7 +62,7 @@ export const OwnerLayout: React.FC = () => {
               Owner Executive Console
             </h1>
             <span className="text-xs text-content-muted block">
-              The Grand Bistro • Multi-outlet view
+              {user ? `${user.name} (@${user.username})` : 'The Grand Bistro • Multi-outlet view'}
             </span>
           </div>
         </div>
@@ -68,6 +79,16 @@ export const OwnerLayout: React.FC = () => {
             ) : (
               <Moon className="w-5 h-5" aria-hidden="true" />
             )}
+          </IconButton>
+
+          <IconButton
+            aria-label="Sign out"
+            variant="ghost"
+            size="md"
+            onClick={handleLogout}
+            className="text-danger hover:bg-danger/10"
+          >
+            <LogOut className="w-5 h-5" aria-hidden="true" />
           </IconButton>
         </div>
       </header>

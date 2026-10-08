@@ -1,0 +1,20 @@
+-- Migration 0002: Roles, Permissions, Auth & Refresh Tokens (Down)
+
+DROP TABLE IF EXISTS refresh_tokens CASCADE;
+
+ALTER TABLE audit_logs DROP COLUMN IF EXISTS ip;
+ALTER TABLE audit_logs DROP COLUMN IF EXISTS device;
+
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_unique;
+ALTER TABLE users DROP COLUMN IF EXISTS last_login_at;
+ALTER TABLE users DROP COLUMN IF EXISTS locked_until;
+ALTER TABLE users DROP COLUMN IF EXISTS failed_attempts;
+ALTER TABLE users DROP COLUMN IF EXISTS active;
+ALTER TABLE users DROP COLUMN IF EXISTS pin_hash;
+ALTER TABLE users DROP COLUMN IF EXISTS password_hash;
+ALTER TABLE users DROP COLUMN IF EXISTS username;
+ALTER TABLE users DROP COLUMN IF EXISTS role_id;
+
+DROP TABLE IF EXISTS role_permissions CASCADE;
+DROP TABLE IF EXISTS permissions CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;

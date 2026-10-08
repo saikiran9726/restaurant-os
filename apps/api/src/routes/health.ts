@@ -1,7 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { checkDatabaseConnection } from '../db/client.js';
+import { registerRouteGuard } from '../auth/middleware.js';
 
 export async function registerHealthRoutes(app: FastifyInstance): Promise<void> {
+  registerRouteGuard({ method: 'GET', url: '/health', isPublic: true });
+
   app.get('/health', async (_req, reply) => {
     const isDbConnected = await checkDatabaseConnection();
 

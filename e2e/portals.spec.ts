@@ -8,9 +8,9 @@ const viewports = [
 ];
 
 const portals = [
-  { route: '/waiter', name: 'Waiter Portal', selector: 'header' },
-  { route: '/kitchen', name: 'Kitchen Display', selector: 'header' },
-  { route: '/owner', name: 'Owner Console', selector: 'header' },
+  { route: '/waiter?e2e_role=WAITER', name: 'Waiter Portal', selector: 'header' },
+  { route: '/kitchen?e2e_role=KITCHEN', name: 'Kitchen Display', selector: 'header' },
+  { route: '/owner?e2e_role=OWNER', name: 'Owner Console', selector: 'header' },
   { route: '/login', name: 'Login Screen', selector: 'h1' },
 ];
 
@@ -25,7 +25,7 @@ test.describe('Portal Shell Responsive Rendering', () => {
           await expect(page.locator(portal.selector).first()).toBeVisible();
 
           // Waiter responsive navigation check
-          if (portal.route === '/waiter') {
+          if (portal.route.startsWith('/waiter')) {
             if (vp.width === 390) {
               await expect(
                 page.getByRole('navigation', { name: 'Mobile Navigation' }),
@@ -38,7 +38,7 @@ test.describe('Portal Shell Responsive Rendering', () => {
           }
 
           // Kitchen rush mode toggle test
-          if (portal.route === '/kitchen') {
+          if (portal.route.startsWith('/kitchen')) {
             const rushToggle = page.getByRole('switch', { name: /toggle rush mode/i });
             await expect(rushToggle).toBeVisible();
             await expect(rushToggle).toHaveAttribute('aria-checked', 'false');
@@ -47,7 +47,7 @@ test.describe('Portal Shell Responsive Rendering', () => {
           }
 
           // Owner responsive layout check
-          if (portal.route === '/owner') {
+          if (portal.route.startsWith('/owner')) {
             if (vp.width === 390) {
               await expect(
                 page.getByRole('navigation', { name: 'Owner mobile navigation' }),

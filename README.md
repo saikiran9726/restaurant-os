@@ -98,12 +98,19 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/restaurant_os
 pnpm install
 ```
 
-### 4. Run Database Migrations
+### 4. Run Database Migrations & Seed Initial Owner
 
-Run the initial schema migration (creates `restaurants`, `users`, `audit_logs`, and `_migrations` tracking table):
+Run the schema migrations (creates `restaurants`, `roles`, `permissions`, `role_permissions`, `users`, `refresh_tokens`, `audit_logs`, and `_migrations` tracking table):
 
 ```bash
 pnpm db:migrate
+```
+
+Seed the default roles (`OWNER`, `WAITER`, `KITCHEN`, `MANAGER`, `CASHIER`), 25 system permissions, permission matrix, and the initial owner user:
+
+```bash
+# Set SEED_OWNER_USERNAME and SEED_OWNER_PASSWORD in your .env
+pnpm --filter @restaurant-os/api db:seed
 ```
 
 To revert the latest migration:
@@ -120,10 +127,48 @@ Run both API and Web concurrently:
 pnpm dev
 ```
 
-- **Web App**: [http://localhost:5173](http://localhost:5173) (Restaurant OS Diagnostics Boot Page)
+- **Web App**: [http://localhost:5173](http://localhost:5173) (Restaurant OS Diagnostics Boot Page & Portals)
 - **API Server**: [http://localhost:4000](http://localhost:4000)
   - `GET /health` -> `{ status: "ok", db: "connected", timestamp: "...", uptime: 1.2 }`
-  - `GET /version` -> `{ name: "@restaurant-os/api", version: "0.1.0", environment: "development", uptime: 1.2 }`
+  - `POST /auth/login` -> Password & quick PIN login with rotating refresh tokens
+  - `GET /me` -> Current authenticated session details
+  - `GET /staff`, `POST /staff`, `PATCH /staff/:id` -> Staff management with last-owner protection
+  - `GET /audit-logs` -> Filterable audit event trail
+
+---
+
+## 🔐 Authentication, RBAC & Security Architecture
+
+1. **Dual-Mode Credential Authentication**:
+   - **Password Mode**: Owner and Manager accounts log in via username and password (hashed with memory-hard **Argon2id**).
+   - **Quick PIN Mode**: Waiters and Kitchen staff authenticate using username and 4–6 digit PINs on shared touch terminals with large 3x4 `PinPad` components and optional haptic feedback.
+   - **Lockout Protection**: Accounts are automatically locked for 10 minutes upon 5 consecutive failed login attempts to prevent brute-force attacks.
+
+2. **Token Security**:
+   - Short-lived Access Tokens (15 minutes) signed via JWT stored strictly in memory (`useAuthStore`).
+   - Long-lived Rotating Refresh Tokens stored as SHA-256 hashes in PostgreSQL and transmitted via `httpOnly`, `Secure`, `SameSite=lax` cookies.
+   - Non-destructive re-login modal allows staff to resume sessions upon token expiration without losing in-flight state.
+
+3. **Backend Permission Guard & Default-Deny**:
+   - Strict `requirePermission(permission)` middleware enforcing granular access rights.
+   - Automated `tests/route-registry.test.ts` audit fails CI if any non-public endpoint lacks an explicit permission guard.
+   - Role-permission matrix verified via test suite ensuring Waiter and Kitchen tokens receive HTTP `403 FORBIDDEN` when calling management endpoints.
+
+4. **Dynamic Role Extensibility**:
+   - `MANAGER` and `CASHIER` roles are seeded directly into the database. Adding custom permissions or creating new roles requires **inserting rows only** into `roles` and `role_permissions` without necessitating code refactoring or schema migrations:
+     ```sql
+     -- Example: Assigning discount.apply with 15% cap to CASHIER
+     INSERT INTO role_permissions (role_id, permission_id, discount_cap_percent)
+     SELECT r.id, p.id, 15
+     FROM roles r, permissions p
+     WHERE r.name = 'CASHIER' AND p.name = 'discount.apply';
+     ```
+
+5. **Data Shaping & Privacy**:
+   - Per-role serializers (`serializeKitchenOrder`, `serializeOrderForRole`) strip customer PII and price data from kitchen views.
+
+6. **Last-Owner Protection**:
+   - Server-side guard prevents deactivating or demoting the last active `OWNER` of a restaurant.
 
 ---
 
@@ -133,6 +178,12 @@ pnpm dev
 
 ```bash
 pnpm test
+```
+
+### Run Playwright Responsive & Accessibility Tests
+
+```bash
+pnpm test:e2e
 ```
 
 ### Type Checking (Strict Mode across all workspaces)

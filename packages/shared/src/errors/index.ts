@@ -63,6 +63,10 @@ export class AppError extends Error {
     return new AppError(message, ErrorCodes.FORBIDDEN, 403, details);
   }
 
+  static conflict(message = 'Conflict', details?: unknown): AppError {
+    return new AppError(message, ErrorCodes.CONFLICT, 409, details);
+  }
+
   static internal(message = 'Internal server error', details?: unknown): AppError {
     return new AppError(message, ErrorCodes.INTERNAL_SERVER_ERROR, 500, details);
   }
