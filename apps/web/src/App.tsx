@@ -1,180 +1,88 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchHealth, fetchVersion } from './api/client.js';
-import { useAppStore } from './stores/useAppStore.js';
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BootHub } from './pages/BootHub.js';
+import { ToastContainer } from './components/ui/Toast.js';
+import { Skeleton } from './components/ui/UtilityComponents.js';
+import { RequireAuth } from './components/RequireAuth.js';
+
+// Separate lazy-loaded route bundles
+const WaiterPortal = lazy(() => import('./portals/waiter/index.js'));
+const KitchenPortal = lazy(() => import('./portals/kitchen/index.js'));
+const OwnerPortal = lazy(() => import('./portals/owner/index.js'));
+const ComponentShowcase = lazy(() => import('./pages/ComponentShowcase.js'));
+const LoginPage = lazy(() => import('./pages/Login.js'));
+
+const PortalLoadingFallback: React.FC = () => (
+  <div
+    role="status"
+    aria-label="Loading view..."
+    className="min-h-screen flex flex-col p-6 space-y-4 bg-surface-canvas text-content-primary"
+  >
+    <div className="h-16 w-full rounded-xl bg-surface-elevated animate-pulse flex items-center justify-between px-6">
+      <Skeleton variant="text" width={160} height={24} />
+      <Skeleton variant="circular" width={40} height={40} />
+    </div>
+    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+      <Skeleton variant="rectangular" height={220} />
+      <Skeleton variant="rectangular" height={220} />
+      <Skeleton variant="rectangular" height={220} />
+    </div>
+  </div>
+);
 
 export function App(): React.JSX.Element {
-  const { setLastBootCheck } = useAppStore();
-
-  const {
-    data: healthData,
-    isLoading: isHealthLoading,
-    isError: isHealthError,
-    error: healthError,
-    refetch: refetchHealth,
-    isFetching,
-  } = useQuery({
-    queryKey: ['health'],
-    queryFn: async () => {
-      const res = await fetchHealth();
-      setLastBootCheck(res.data.timestamp);
-      return res;
-    },
-    refetchInterval: 15000,
-  });
-
-  const { data: versionData } = useQuery({
-    queryKey: ['version'],
-    queryFn: fetchVersion,
-    staleTime: 60000,
-  });
-
-  const isDbConnected = healthData?.data.db === 'connected';
-  const isApiOk = healthData?.data.status === 'ok';
-
   return (
-    <main className="container" role="main">
-      <header className="header">
-        <div className="title-group">
-          <h1 className="title">Restaurant OS</h1>
-          <span className="dev-badge" aria-label="Development Mode Badge">
-            Boot Diagnostics
-          </span>
-        </div>
-        <div className="actions-bar">
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => void refetchHealth()}
-            disabled={isFetching}
-            aria-busy={isFetching}
-          >
-            {isFetching ? 'Checking...' : 'Re-check Status'}
-          </button>
-        </div>
-      </header>
+    <BrowserRouter>
+      <Suspense fallback={<PortalLoadingFallback />}>
+        <Routes>
+          {/* Main Diagnostics & Portal Entry Hub */}
+          <Route path="/" element={<BootHub />} />
 
-      <section aria-labelledby="system-status-heading">
-        <h2 id="system-status-heading" className="card-title" style={{ marginBottom: '1rem' }}>
-          System Health Overview
-        </h2>
+          {/* Static Login Screen */}
+          <Route path="/login" element={<LoginPage />} />
 
-        <div className="grid">
-          {/* API Server Status */}
-          <div className="card">
-            <span className="card-title">API Server</span>
-            <div className="card-value">
-              <span
-                className={`status-indicator ${
-                  isHealthLoading ? 'status-loading' : isApiOk ? 'status-ok' : 'status-error'
-                }`}
-                aria-hidden="true"
-              />
-              <span>
-                {isHealthLoading
-                  ? 'Connecting...'
-                  : isApiOk
-                    ? 'Online (200 OK)'
-                    : 'Offline / Error'}
-              </span>
-            </div>
-            <small style={{ color: '#94a3b8' }}>
-              Latency: {healthData ? `${healthData.latencyMs}ms` : '--'}
-            </small>
-          </div>
+          {/* Waiter Portal Shell (phone bottom nav, tablet rail) */}
+          <Route
+            path="/waiter/*"
+            element={
+              <RequireAuth>
+                <WaiterPortal />
+              </RequireAuth>
+            }
+          />
 
-          {/* Database Connection */}
-          <div className="card">
-            <span className="card-title">PostgreSQL Database</span>
-            <div className="card-value">
-              <span
-                className={`status-indicator ${
-                  isHealthLoading ? 'status-loading' : isDbConnected ? 'status-ok' : 'status-error'
-                }`}
-                aria-hidden="true"
-              />
-              <span>
-                {isHealthLoading
-                  ? 'Testing query...'
-                  : isDbConnected
-                    ? 'Connected (Pool Active)'
-                    : 'Disconnected'}
-              </span>
-            </div>
-            <small style={{ color: '#94a3b8' }}>Checked with `SELECT 1` query</small>
-          </div>
+          {/* Kitchen Display System Shell (full-screen header, live clock, rush mode) */}
+          <Route
+            path="/kitchen/*"
+            element={
+              <RequireAuth>
+                <KitchenPortal />
+              </RequireAuth>
+            }
+          />
 
-          {/* API Version & Environment */}
-          <div className="card">
-            <span className="card-title">API Environment</span>
-            <div className="card-value">
-              <span>{versionData?.environment ?? 'development'}</span>
-            </div>
-            <small style={{ color: '#94a3b8' }}>Version: {versionData?.version ?? '0.1.0'}</small>
-          </div>
+          {/* Owner Console Shell (desktop sidebar, mobile summary tabs) */}
+          <Route
+            path="/owner/*"
+            element={
+              <RequireAuth>
+                <OwnerPortal />
+              </RequireAuth>
+            }
+          />
 
-          {/* Server Uptime */}
-          <div className="card">
-            <span className="card-title">Process Uptime</span>
-            <div className="card-value">
-              <span>{healthData ? `${Math.floor(healthData.data.uptime)}s` : '--'}</span>
-            </div>
-            <small style={{ color: '#94a3b8' }}>
-              Timestamp:{' '}
-              {healthData?.data.timestamp
-                ? new Date(healthData.data.timestamp).toLocaleTimeString()
-                : '--'}
-            </small>
-          </div>
-        </div>
-      </section>
+          {/* Design System & Component Library (Dev Only) */}
+          <Route path="/dev/components" element={<ComponentShowcase />} />
 
-      {/* Error Details if any */}
-      {isHealthError && (
-        <section
-          aria-live="polite"
-          style={{
-            background: '#7f1d1d33',
-            border: '1px solid #ef4444',
-            borderRadius: '8px',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
-          }}
-        >
-          <h3 style={{ color: '#f87171', marginBottom: '0.5rem' }}>Connection Failed</h3>
-          <p style={{ color: '#fca5a5', fontSize: '0.9rem' }}>
-            {healthError instanceof Error ? healthError.message : 'Unknown error occurred'}
-          </p>
-          <p style={{ color: '#cbd5e1', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-            Ensure the API server is running on port 4000 and PostgreSQL is running.
-          </p>
-        </section>
-      )}
+          {/* Catch-all redirect */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
 
-      {/* Raw Health Check Payload */}
-      <section aria-labelledby="raw-payload-heading">
-        <h2 id="raw-payload-heading" className="card-title">
-          Diagnostic Response Payload
-        </h2>
-        <div className="info-box">
-          <pre>
-            {JSON.stringify(
-              healthData
-                ? {
-                    status: healthData.data.status,
-                    db: healthData.data.db,
-                    timestamp: healthData.data.timestamp,
-                    uptime: healthData.data.uptime,
-                    latencyMs: healthData.latencyMs,
-                  }
-                : { status: 'waiting_for_response' },
-              null,
-              2,
-            )}
-          </pre>
-        </div>
-      </section>
-    </main>
+      {/* Global Toast Notification Container */}
+      <ToastContainer />
+    </BrowserRouter>
   );
 }
+
 export default App;

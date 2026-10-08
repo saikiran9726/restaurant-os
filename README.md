@@ -29,12 +29,22 @@ restaurant-os/
 │       ├── public/            # Static assets, Web App Manifest & SW stub
 │       ├── src/
 │       │   ├── api/           # Typed API fetch client
-│       │   ├── stores/        # Zustand application store scaffolding
-│       │   ├── App.tsx        # Restaurant OS boot & diagnostics page
+│       │   ├── components/    # Design system UI components & overlays
+│       │   │   └── ui/        # 21 typed, accessible components & tests
+│       │   ├── hooks/         # useReducedMotion hook
+│       │   ├── i18n/          # Translation scaffold (t helper)
+│       │   ├── pages/         # BootHub, ComponentShowcase, Login
+│       │   ├── portals/       # Lazy-loaded portal shells
+│       │   │   ├── waiter/    # Phone bottom-nav / tablet rail
+│       │   │   ├── kitchen/   # Full-screen KDS, live clock, Rush Mode
+│       │   │   └── owner/     # Desktop sidebar / mobile summary tabs
+│       │   ├── stores/        # Zustand stores (theme, connection, kitchen, toast)
+│       │   ├── App.tsx        # Route tree with lazy portals & auth gate
 │       │   ├── main.tsx       # Root entrypoint with TanStack Query provider
-│       │   └── index.css      # Accessible, high-contrast dashboard styling
-│       ├── index.html         # HTML template
+│       │   └── index.css      # Design tokens (4-pt grid, kitchen scale, dark mode)
+│       ├── tailwind.config.ts # Tailwind CSS with semantic tokens
 │       └── vite.config.ts     # Vite bundler with VitePWA plugin & dev proxy
+├── e2e/                       # Playwright responsive (390/820/1440px) & Axe tests
 ├── packages/
 │   └── shared/                # Universal code shared across api and web
 │       └── src/
@@ -48,6 +58,15 @@ restaurant-os/
 ├── pnpm-workspace.yaml        # Workspace configuration
 └── tsconfig.base.json         # Base TypeScript configuration (Strict Mode)
 ```
+
+### 📱 Portal Shells & Routes
+
+- **`/`**: Portal Hub & diagnostics dashboard.
+- **`/waiter`**: Mobile-first waiter station with bottom nav (phone) and left rail (tablet), table grid, item cards, and order sheets.
+- **`/kitchen`**: KDS high-contrast dark mode with +25% typography scale, digital clock, live orders, bump buttons, and Rush Mode state toggle.
+- **`/owner`**: Executive console with desktop sidebar and mobile summary tabs, revenue KPIs, AI insights, sortable data table, and export dialog.
+- **`/dev/components`**: Interactive design system sandbox and documentation for all 21 components.
+- **`/login`**: Static authentication screen with visible "Phase 2" placeholder note.
 
 ---
 
