@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Local PostgreSQL Database with persistent volume
+  hub-db:
+    image: postgres:16-alpine
+    container_name: restaurant-hub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_hub_local_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-restaurant_hub}
+    volumes:
+      - hub_pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d restaurant_hub']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Local Hub API (Fastify + Realtime Socket.IO + Sync Engine)
+  hub-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: restaurant-hub-api
+    restart: unless-stopped
+    depends_on:
+      hub-db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_hub_local_pass}@hub-db:5432/${POSTGRES_DB:-restaurant_hub}
+      JWT_SECRET: ${JWT_SECRET:-restaurant_os_hub_jwt_secret_key_32chars}
+      COOKIE_SECRET: ${COOKIE_SECRET:-restaurant_os_hub_cookie_secret_key_32chars}
+      HUB_ROLE: local_hub
+      CLOUD_SYNC_URL: ${CLOUD_SYNC_URL:-https://cloud.restaurant-os.internal}
+      RESTAURANT_ID: ${RESTAURANT_ID}
+      HUB_DEVICE_ID: ${HUB_DEVICE_ID:-hub-local-01}
+      HUB_API_KEY: ${HUB_API_KEY}
+    ports:
+      - '3000:3000'
+
+  # Automatic Nightly Database Backup Cron Service
+  hub-backup:
+    image: postgres:16-alpine
+    container_name: restaurant-hub-backup
+    restart: unless-stopped
+    depends_on:
+      hub-db:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+      - ./backup.sh:/backup.sh:ro
+    environment:
+      PGHOST: hub-db
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres_hub_local_pass}
+      PGDATABASE: ${POSTGRES_DB:-restaurant_hub}
+      BACKUP_DIR: /backups
+      RETENTION_DAYS: 14
+    entrypoint:
+      ['/bin/sh', '-c', 'chmod +x /backup.sh && while true; do /backup.sh; sleep 86400; done']
+
+volumes:
+  hub_pgdata:
+    name: restaurant_hub_pgdata

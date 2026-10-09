@@ -1,89 +1,179 @@
-import React, { useState } from 'react';
-import { TimerBadge, type TimerSeverity } from '../../components/ui/TimerBadge.js';
-import { StatusPill } from '../../components/ui/StatusPill.js';
-import { VegMark } from '../../components/ui/VegMark.js';
-import { Button } from '../../components/ui/Button.js';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useKitchenStore, type KitchenKot } from '../../stores/useKitchenStore.js';
+import { KotCard } from '../../components/KotCard.js';
+import { KotRow } from '../../components/KotRow.js';
+import { OosSheet } from '../../components/OosSheet.js';
+import { RecentlyServedDrawer } from '../../components/RecentlyServedDrawer.js';
 import { SegmentedControl } from '../../components/ui/SegmentedControl.js';
-import { useKitchenStore } from '../../stores/useKitchenStore.js';
-import { useToastStore } from '../../stores/useToastStore.js';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
-
-interface TicketItem {
-  id: string;
-  name: string;
-  qty: number;
-  diet: 'veg' | 'nonveg';
-  notes?: string;
-}
-
-interface KitchenTicket {
-  id: string;
-  ticketNumber: string;
-  tableNumber: string;
-  waiterName: string;
-  elapsedSeconds: number;
-  severity: TimerSeverity;
-  status: 'new' | 'preparing' | 'late' | 'overdue';
-  items: TicketItem[];
-}
-
-const mockTickets: KitchenTicket[] = [
-  {
-    id: 'k-101',
-    ticketNumber: '#101',
-    tableNumber: 'T-02',
-    waiterName: 'Rahul S.',
-    elapsedSeconds: 245, // 04:05
-    severity: 'normal',
-    status: 'preparing',
-    items: [
-      { id: '1', name: 'Butter Chicken', qty: 1, diet: 'nonveg', notes: 'Medium spice' },
-      { id: '2', name: 'Garlic Naan', qty: 2, diet: 'veg' },
-      { id: '3', name: 'Jeera Rice', qty: 1, diet: 'veg' },
-    ],
-  },
-  {
-    id: 'k-102',
-    ticketNumber: '#102',
-    tableNumber: 'T-07',
-    waiterName: 'Priya K.',
-    elapsedSeconds: 840, // 14:00
-    severity: 'late',
-    status: 'late',
-    items: [
-      { id: '4', name: 'Paneer Tikka Platter', qty: 2, diet: 'veg', notes: 'Extra mint chutney' },
-      { id: '5', name: 'Dal Makhani', qty: 1, diet: 'veg' },
-      { id: '6', name: 'Tandoori Roti', qty: 4, diet: 'veg' },
-    ],
-  },
-  {
-    id: 'k-103',
-    ticketNumber: '#103',
-    tableNumber: 'T-06',
-    waiterName: 'Rahul S.',
-    elapsedSeconds: 1320, // 22:00
-    severity: 'overdue',
-    status: 'overdue',
-    items: [
-      { id: '7', name: 'Chicken Biryani', qty: 2, diet: 'nonveg', notes: 'Double mirchi salan' },
-      { id: '8', name: 'Raita', qty: 2, diet: 'veg' },
-    ],
-  },
-];
+import { Skeleton } from '../../components/ui/UtilityComponents.js';
+import { AlertTriangle, CheckCircle2, ChefHat, Flame, Clock, Sparkles, Layers } from 'lucide-react';
 
 export const KitchenHome: React.FC = () => {
-  const { rushMode } = useKitchenStore();
-  const { addToast } = useToastStore();
-  const [tickets, setTickets] = useState(mockTickets);
-  const [station, setStation] = useState<'All' | 'Grill' | 'Curry' | 'Breads'>('All');
+  const {
+    kots,
+    recentlyServed,
+    rushMode,
+    textSize,
+    isLoading,
+    criticalThresholdMinutes,
+    fetchKitchenState,
+    markKotSeen,
+    toggleItemDone,
+    setKotStatus,
+    isOosOpen,
+    isRecentlyServedOpen,
+    setOosOpen,
+    setRecentlyServedOpen,
+    requestWakeLock,
+  } = useKitchenStore();
 
-  const handleBump = (ticketId: string, ticketNumber: string) => {
-    setTickets((prev) => prev.filter((t) => t.id !== ticketId));
-    addToast({
-      message: `Ticket ${ticketNumber} bumped / completed!`,
-      type: 'success',
-    });
-  };
+  const [selectedKotId, setSelectedKotId] = useState<string | null>(null);
+  const [rushFilter, setRushFilter] = useState<'all' | 'new' | 'preparing' | 'ready'>('all');
+
+  // Initial load and screen wake lock
+  useEffect(() => {
+    fetchKitchenState();
+    requestWakeLock();
+  }, [fetchKitchenState, requestWakeLock]);
+
+  // Periodic poll fallback every 15 seconds to ensure sync if socket disconnects
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchKitchenState();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [fetchKitchenState]);
+
+  // Helper to calculate elapsed minutes
+  const getElapsedMinutes = useCallback((createdAt: string) => {
+    return Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+  }, []);
+
+  // Sort helper: Overdue pinned to top, followed by oldest first
+  const sortKots = useCallback(
+    (list: KitchenKot[]) => {
+      return [...list].sort((a, b) => {
+        const aOverdue = getElapsedMinutes(a.createdAt) >= criticalThresholdMinutes;
+        const bOverdue = getElapsedMinutes(b.createdAt) >= criticalThresholdMinutes;
+        if (aOverdue && !bOverdue) return -1;
+        if (!aOverdue && bOverdue) return 1;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+    },
+    [getElapsedMinutes, criticalThresholdMinutes],
+  );
+
+  // Group active KOTs into columns
+  const newKots = useMemo(() => sortKots(kots.filter((k) => k.status === 'new')), [kots, sortKots]);
+
+  const preparingKots = useMemo(
+    () => sortKots(kots.filter((k) => k.status === 'preparing')),
+    [kots, sortKots],
+  );
+
+  const readyKots = useMemo(
+    () => sortKots(kots.filter((k) => k.status === 'ready')),
+    [kots, sortKots],
+  );
+
+  // Filtered list for Rush Mode
+  const rushKots = useMemo(() => {
+    let filtered = kots.filter((k) => k.status !== 'served' && k.status !== 'cancelled');
+    if (rushFilter !== 'all') {
+      filtered = filtered.filter((k) => k.status === rushFilter);
+    }
+    return sortKots(filtered);
+  }, [kots, rushFilter, sortKots]);
+
+  // All ordered visible KOTs for keyboard navigation
+  const visibleKots = useMemo(() => {
+    if (rushMode) return rushKots;
+    return [...newKots, ...preparingKots, ...readyKots];
+  }, [rushMode, rushKots, newKots, preparingKots, readyKots]);
+
+  // Sync selected ID if selected card disappears
+  useEffect(() => {
+    if (visibleKots.length === 0) {
+      setSelectedKotId(null);
+    } else if (!selectedKotId || !visibleKots.some((k) => k.id === selectedKotId)) {
+      setSelectedKotId(visibleKots[0]?.id ?? null);
+    }
+  }, [visibleKots, selectedKotId]);
+
+  // Keyboard navigation (J / K / Space)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is inside an input, textarea, or sheet
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || isOosOpen || isRecentlyServedOpen) {
+        return;
+      }
+
+      if (e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        if (visibleKots.length === 0) return;
+        const currentIndex = visibleKots.findIndex((k) => k.id === selectedKotId);
+        const nextIndex = currentIndex < visibleKots.length - 1 ? currentIndex + 1 : 0;
+        const target = visibleKots[nextIndex];
+        if (target) setSelectedKotId(target.id);
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        if (visibleKots.length === 0) return;
+        const currentIndex = visibleKots.findIndex((k) => k.id === selectedKotId);
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : visibleKots.length - 1;
+        const target = visibleKots[prevIndex];
+        if (target) setSelectedKotId(target.id);
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        if (!selectedKotId) return;
+        const current = visibleKots.find((k) => k.id === selectedKotId);
+        if (!current) return;
+
+        if (current.status === 'new') {
+          markKotSeen(current.id);
+        } else if (current.status === 'preparing') {
+          // Toggle first incomplete item
+          const firstIncomplete = current.items.find(
+            (i) => i.action !== 'cancel' && i.status !== 'cancelled' && i.status !== 'done',
+          );
+          if (firstIncomplete) {
+            toggleItemDone(current.id, firstIncomplete.id);
+          } else {
+            setKotStatus(current.id, 'ready');
+          }
+        } else if (current.status === 'ready') {
+          setKotStatus(current.id, 'served');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    visibleKots,
+    selectedKotId,
+    isOosOpen,
+    isRecentlyServedOpen,
+    markKotSeen,
+    toggleItemDone,
+    setKotStatus,
+  ]);
+
+  if (isLoading && kots.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map((col) => (
+            <div key={col} className="space-y-4">
+              <Skeleton className="h-12 w-full rounded-xl bg-surface-elevated" />
+              <Skeleton className="h-64 w-full rounded-2xl bg-surface-elevated" />
+              <Skeleton className="h-64 w-full rounded-2xl bg-surface-elevated" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -91,108 +181,259 @@ export const KitchenHome: React.FC = () => {
       {rushMode && (
         <div
           role="alert"
-          className="rounded-xl bg-red-600/20 border-2 border-red-500 p-4 flex items-center justify-between text-white"
+          className="rounded-2xl bg-gradient-to-r from-red-900/60 via-red-950/80 to-surface-card border-2 border-red-500 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white shadow-2xl"
         >
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-6 h-6 text-red-400 shrink-0" aria-hidden="true" />
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-red-600/30 border border-red-500/50">
+              <AlertTriangle className="w-7 h-7 text-red-400 animate-pulse shrink-0" />
+            </div>
             <div>
               <span className="text-title font-black uppercase tracking-wider block">
-                Rush Mode Priority Active
+                Rush Mode Priority Display
               </span>
               <span className="text-body text-red-200">
-                Prep stations focused on fast-track appetizers and immediate batch items.
+                Dense high-density layout enabled (up to 14 rows glanceable). Fast-track batch
+                preparation.
               </span>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <SegmentedControl
+              value={rushFilter}
+              onChange={(val) => setRushFilter(val as typeof rushFilter)}
+              options={[
+                { value: 'all', label: `All (${kots.length})` },
+                { value: 'new', label: `New (${newKots.length})` },
+                { value: 'preparing', label: `Prep (${preparingKots.length})` },
+                { value: 'ready', label: `Ready (${readyKots.length})` },
+              ]}
+              size="md"
+            />
           </div>
         </div>
       )}
 
-      {/* Station Filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <SegmentedControl
-          value={station}
-          onChange={(val) => setStation(val as typeof station)}
-          options={[
-            { value: 'All', label: 'All Stations' },
-            { value: 'Grill', label: 'Tandoor & Grill' },
-            { value: 'Curry', label: 'Main Curries' },
-            { value: 'Breads', label: 'Breads & Rice' },
-          ]}
-          size="lg"
-        />
-
-        <div className="text-right">
-          <span className="text-caption font-bold text-content-muted uppercase">
-            Active Tickets:
-          </span>{' '}
-          <span className="text-title font-mono font-black text-content-primary">
-            {tickets.length}
+      {/* Keyboard Shortcuts Hint Bar */}
+      <div className="hidden lg:flex items-center justify-between px-4 py-2 rounded-xl bg-surface-elevated/60 border border-surface-border text-xs text-content-muted font-mono select-none">
+        <div className="flex items-center gap-4">
+          <span>
+            <kbd className="px-1.5 py-0.5 rounded bg-surface-card border border-surface-border text-content-primary font-bold">
+              J
+            </kbd>{' '}
+            Next Ticket
           </span>
+          <span>
+            <kbd className="px-1.5 py-0.5 rounded bg-surface-card border border-surface-border text-content-primary font-bold">
+              K
+            </kbd>{' '}
+            Prev Ticket
+          </span>
+          <span>
+            <kbd className="px-1.5 py-0.5 rounded bg-surface-card border border-surface-border text-content-primary font-bold">
+              Space
+            </kbd>{' '}
+            Advance / Bump Selected
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-content-secondary">
+          <Clock className="w-3.5 h-3.5 text-accent" />
+          <span>Overdue items pinned to top</span>
         </div>
       </div>
 
-      {/* Ticket Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tickets.map((ticket) => (
-          <article
-            key={ticket.id}
-            className="rounded-2xl border-2 border-surface-border bg-surface-card flex flex-col justify-between shadow-xl overflow-hidden select-none"
-          >
-            {/* Ticket Header */}
-            <div className="p-4 bg-surface-elevated border-b-2 border-surface-border flex items-center justify-between">
-              <div>
-                <span className="text-title font-black text-content-primary">
-                  {ticket.ticketNumber} • {ticket.tableNumber}
-                </span>
-                <span className="text-caption text-content-muted block">
-                  Server: {ticket.waiterName}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <TimerBadge seconds={ticket.elapsedSeconds} state={ticket.severity} size="lg" />
-              </div>
+      {/* Main Board View: 3 Columns OR Rush Mode Dense List */}
+      {rushMode ? (
+        /* Rush Mode Dense Single-Line Rows */
+        <div className="space-y-2">
+          {rushKots.length === 0 ? (
+            <div className="py-24 text-center rounded-2xl border-2 border-dashed border-surface-border bg-surface-card/50">
+              <ChefHat className="w-16 h-16 mx-auto text-content-muted mb-4 opacity-40" />
+              <h3 className="text-headline font-black text-content-primary uppercase">
+                All Orders Cleared
+              </h3>
+              <p className="text-body text-content-muted mt-1">
+                No active kitchen tickets in this view.
+              </p>
             </div>
-
-            {/* Ticket Items */}
-            <div className="p-5 flex-1 divide-y divide-surface-border/60">
-              {ticket.items.map((item) => (
-                <div key={item.id} className="py-3 first:pt-0 last:pb-0 flex items-start gap-3">
-                  <span className="text-title font-black text-accent min-w-[32px]">
-                    {item.qty}×
-                  </span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <VegMark type={item.diet} size="sm" />
-                      <span className="text-body font-bold text-content-primary">{item.name}</span>
-                    </div>
-                    {item.notes && (
-                      <span className="inline-block mt-1 text-caption text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded">
-                        Note: {item.notes}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Ticket Actions (>= 48px touch target) */}
-            <div className="p-4 bg-surface-elevated/50 border-t-2 border-surface-border flex items-center justify-between gap-3">
-              <StatusPill status={ticket.status} size="lg" />
-
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={() => handleBump(ticket.id, ticket.ticketNumber)}
-                leftIcon={<CheckCircle className="w-5 h-5" />}
-                className="font-bold flex-1"
+          ) : (
+            rushKots.map((kot) => (
+              <div
+                key={kot.id}
+                onClick={() => setSelectedKotId(kot.id)}
+                className={`transition-all ${
+                  selectedKotId === kot.id ? 'ring-2 ring-accent rounded-xl' : ''
+                }`}
               >
-                Bump Order
-              </Button>
+                <KotRow
+                  kot={kot}
+                  textSize={textSize}
+                  onMarkSeen={markKotSeen}
+                  onToggleItemDone={toggleItemDone}
+                  onMarkStatus={setKotStatus}
+                />
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        /* Standard 3-Column Board: NEW | PREPARING | READY */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* Column 1: NEW */}
+          <section
+            className="flex flex-col rounded-2xl bg-surface-elevated/40 border-2 border-surface-border p-4 space-y-4"
+            aria-label="New KOTs"
+          >
+            <div className="flex items-center justify-between border-b-2 border-surface-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-3.5 h-3.5 rounded-full bg-blue-500 ring-4 ring-blue-500/20" />
+                <h2 className="text-title font-black uppercase tracking-wider text-content-primary">
+                  New Orders
+                </h2>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-mono font-black text-body">
+                {newKots.length}
+              </span>
             </div>
-          </article>
-        ))}
-      </div>
+
+            <div className="space-y-4 min-h-[300px]">
+              {newKots.length === 0 ? (
+                <div className="py-16 text-center text-content-muted select-none">
+                  <Sparkles className="w-10 h-10 mx-auto mb-2 opacity-30 text-blue-400" />
+                  <p className="text-body font-bold">No new orders waiting</p>
+                </div>
+              ) : (
+                newKots.map((kot) => {
+                  const isOverdue = getElapsedMinutes(kot.createdAt) >= criticalThresholdMinutes;
+                  return (
+                    <div
+                      key={kot.id}
+                      onClick={() => setSelectedKotId(kot.id)}
+                      className={`transition-all ${
+                        selectedKotId === kot.id ? 'ring-4 ring-accent rounded-2xl' : ''
+                      } ${isOverdue ? 'border-2 border-red-500 rounded-2xl' : ''}`}
+                    >
+                      <KotCard
+                        kot={kot}
+                        textSize={textSize}
+                        onMarkSeen={markKotSeen}
+                        onToggleItemDone={toggleItemDone}
+                        onMarkStatus={setKotStatus}
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          {/* Column 2: PREPARING */}
+          <section
+            className="flex flex-col rounded-2xl bg-surface-elevated/40 border-2 border-surface-border p-4 space-y-4"
+            aria-label="Preparing KOTs"
+          >
+            <div className="flex items-center justify-between border-b-2 border-surface-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-3.5 h-3.5 rounded-full bg-amber-500 ring-4 ring-amber-500/20" />
+                <h2 className="text-title font-black uppercase tracking-wider text-content-primary">
+                  Preparing
+                </h2>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono font-black text-body">
+                {preparingKots.length}
+              </span>
+            </div>
+
+            <div className="space-y-4 min-h-[300px]">
+              {preparingKots.length === 0 ? (
+                <div className="py-16 text-center text-content-muted select-none">
+                  <ChefHat className="w-10 h-10 mx-auto mb-2 opacity-30 text-amber-400" />
+                  <p className="text-body font-bold">Station clear</p>
+                </div>
+              ) : (
+                preparingKots.map((kot) => {
+                  const isOverdue = getElapsedMinutes(kot.createdAt) >= criticalThresholdMinutes;
+                  return (
+                    <div
+                      key={kot.id}
+                      onClick={() => setSelectedKotId(kot.id)}
+                      className={`transition-all ${
+                        selectedKotId === kot.id ? 'ring-4 ring-accent rounded-2xl' : ''
+                      } ${isOverdue ? 'border-2 border-red-500 rounded-2xl' : ''}`}
+                    >
+                      <KotCard
+                        kot={kot}
+                        textSize={textSize}
+                        onMarkSeen={markKotSeen}
+                        onToggleItemDone={toggleItemDone}
+                        onMarkStatus={setKotStatus}
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          {/* Column 3: READY */}
+          <section
+            className="flex flex-col rounded-2xl bg-surface-elevated/40 border-2 border-surface-border p-4 space-y-4"
+            aria-label="Ready KOTs"
+          >
+            <div className="flex items-center justify-between border-b-2 border-surface-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+                <h2 className="text-title font-black uppercase tracking-wider text-content-primary">
+                  Ready to Serve
+                </h2>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono font-black text-body">
+                {readyKots.length}
+              </span>
+            </div>
+
+            <div className="space-y-4 min-h-[300px]">
+              {readyKots.length === 0 ? (
+                <div className="py-16 text-center text-content-muted select-none">
+                  <CheckCircle2 className="w-10 h-10 mx-auto mb-2 opacity-30 text-emerald-400" />
+                  <p className="text-body font-bold">No orders waiting pickup</p>
+                </div>
+              ) : (
+                readyKots.map((kot) => {
+                  const isOverdue = getElapsedMinutes(kot.createdAt) >= criticalThresholdMinutes;
+                  return (
+                    <div
+                      key={kot.id}
+                      onClick={() => setSelectedKotId(kot.id)}
+                      className={`transition-all ${
+                        selectedKotId === kot.id ? 'ring-4 ring-accent rounded-2xl' : ''
+                      } ${isOverdue ? 'border-2 border-red-500 rounded-2xl' : ''}`}
+                    >
+                      <KotCard
+                        kot={kot}
+                        textSize={textSize}
+                        onMarkSeen={markKotSeen}
+                        onToggleItemDone={toggleItemDone}
+                        onMarkStatus={setKotStatus}
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* 86 List (Out of stock) Drawer */}
+      <OosSheet isOpen={isOosOpen} onClose={() => setOosOpen(false)} />
+
+      {/* Recently Served History Drawer */}
+      <RecentlyServedDrawer
+        isOpen={isRecentlyServedOpen}
+        kots={recentlyServed}
+        onClose={() => setRecentlyServedOpen(false)}
+      />
     </div>
   );
 };

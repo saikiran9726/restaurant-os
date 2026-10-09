@@ -28,6 +28,7 @@ export const Permissions = {
   // Billing & Settlements
   BILL_CREATE: 'bill.create',
   BILL_READ: 'bill.read',
+  BILL_REPRINT: 'bill.reprint',
   PAYMENT_TAKE: 'payment.take',
   DISCOUNT_APPLY: 'discount.apply', // Governed by per-role cap
   BILL_REFUND: 'bill.refund',
@@ -42,6 +43,9 @@ export const Permissions = {
   // Inventory & Operations
   INVENTORY_MANAGE: 'inventory.manage',
   EXPENSE_MANAGE: 'expense.manage',
+
+  // End-of-Day Closing & Reconciliation
+  DAY_CLOSE: 'day.close',
 
   // System Administration
   STAFF_MANAGE: 'staff.manage',
@@ -109,11 +113,13 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<RoleName, readonly Permission[]> =
     Permissions.PAYMENT_TAKE,
     Permissions.DISCOUNT_APPLY,
     Permissions.BILL_REFUND,
+    Permissions.BILL_REPRINT,
     Permissions.REPORT_READ,
     Permissions.CUSTOMER_READ,
     Permissions.CUSTOMER_MANAGE,
     Permissions.INVENTORY_MANAGE,
     Permissions.EXPENSE_MANAGE,
+    Permissions.DAY_CLOSE,
     Permissions.STAFF_MANAGE,
     Permissions.AUDIT_READ,
   ],
@@ -124,6 +130,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<RoleName, readonly Permission[]> =
     Permissions.TABLE_READ,
     Permissions.BILL_CREATE,
     Permissions.BILL_READ,
+    Permissions.BILL_REPRINT,
     Permissions.PAYMENT_TAKE,
     Permissions.DISCOUNT_APPLY,
     Permissions.REPORT_READ,

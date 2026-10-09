@@ -6,6 +6,8 @@ import { Skeleton } from './components/ui/UtilityComponents.js';
 import { RequireAuth } from './components/RequireAuth.js';
 import { SessionExpiryModal } from './components/SessionExpiryModal.js';
 import { useAuthStore } from './stores/useAuthStore.js';
+import { useOutboxStore } from './stores/useOutboxStore.js';
+import { useSocketStore } from './stores/useSocketStore.js';
 import { Roles } from '@restaurant-os/shared';
 
 // Separate lazy-loaded route bundles
@@ -35,11 +37,20 @@ const PortalLoadingFallback: React.FC = () => (
 );
 
 export function App(): React.JSX.Element {
-  const { initSession } = useAuthStore();
+  const { initSession, isAuthenticated } = useAuthStore();
+  const initOutbox = useOutboxStore((state) => state.init);
+  const initSocket = useSocketStore((state) => state.init);
 
   useEffect(() => {
     initSession();
-  }, [initSession]);
+    initOutbox();
+  }, [initSession, initOutbox]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      initSocket();
+    }
+  }, [isAuthenticated, initSocket]);
 
   return (
     <BrowserRouter>

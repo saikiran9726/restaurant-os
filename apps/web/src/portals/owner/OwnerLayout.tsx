@@ -11,8 +11,22 @@ import {
   Moon,
   Shield,
   LogOut,
+  QrCode,
+  Receipt,
+  Award,
+  CalendarCheck,
+  Boxes,
+  Wallet,
+  Calculator,
+  Activity,
+  AlertCircle,
+  Sparkles,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '../../stores/useAuthStore.js';
 import { ConnectionBanner } from '../../components/ConnectionBanner.js';
+import { SyncBanner } from '../../components/SyncBanner.js';
+import { ConnectionBadge } from '../../components/ConnectionBadge.js';
 import { useThemeStore } from '../../stores/useThemeStore.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
 import { IconButton } from '../../components/ui/Button.js';
@@ -26,10 +40,22 @@ interface OwnerNavItem {
 
 const navItems: OwnerNavItem[] = [
   { id: 'overview', label: 'Overview', path: '/owner', icon: LayoutDashboard },
-  { id: 'sales', label: 'Live Sales', path: '/owner/sales', icon: TrendingUp },
+  { id: 'alerts', label: 'Attention Required', path: '/owner/alerts', icon: AlertCircle },
+  { id: 'insights', label: 'Insights', path: '/owner/insights', icon: Sparkles },
+  { id: 'health', label: 'Health Score', path: '/owner/health', icon: Activity },
+  { id: 'sales', label: 'Sales & Analytics', path: '/owner/sales', icon: TrendingUp },
+  { id: 'inventory', label: 'Stock & Inventory', path: '/owner/inventory', icon: Boxes },
+  { id: 'expenses', label: 'Expenses', path: '/owner/expenses', icon: Wallet },
+  { id: 'month-review', label: 'Month Review', path: '/owner/month-review', icon: Calculator },
+  { id: 'close-day', label: 'Day Close (EOD)', path: '/owner/close-day', icon: CalendarCheck },
+  { id: 'customers', label: 'Customers', path: '/owner/customers', icon: Users2 },
+  { id: 'loyalty', label: 'Loyalty & Rewards', path: '/owner/loyalty', icon: Award },
+  { id: 'payments', label: 'UPI & Payments', path: '/owner/payments', icon: QrCode },
+  { id: 'bills', label: 'Bill History', path: '/owner/bills', icon: Receipt },
   { id: 'menu', label: 'Menu Analytics', path: '/owner/menu', icon: UtensilsCrossed },
-  { id: 'staff', label: 'Staff & Roles', path: '/owner/staff', icon: Users2 },
+  { id: 'staff', label: 'Staff & Roles', path: '/owner/staff', icon: Shield },
   { id: 'audit', label: 'Audit Trail', path: '/owner/audit', icon: Shield },
+  { id: 'hub', label: 'Local Hub & Sync', path: '/owner/hub', icon: Settings },
   { id: 'settings', label: 'Settings', path: '/owner/settings', icon: Settings },
 ];
 
@@ -37,6 +63,14 @@ export const OwnerLayout: React.FC = () => {
   const { resolvedTheme, toggleTheme } = useThemeStore();
   const { logout, user } = useAuthStore();
   const navigate = useNavigate();
+
+  const { data: alerts = [] } = useQuery<{ id: string; status: string }[]>({
+    queryKey: ['alerts', 'open'],
+    queryFn: () => apiFetch('/alerts?status=open'),
+    refetchInterval: 15000,
+  });
+
+  const openAlertsCount = alerts.filter((a) => a.status === 'open').length;
 
   const handleLogout = async () => {
     await logout();
@@ -46,6 +80,7 @@ export const OwnerLayout: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-surface-canvas text-content-primary">
       <ConnectionBanner />
+      <SyncBanner />
 
       {/* Top Header */}
       <header className="h-16 px-6 border-b border-surface-border bg-surface-card flex items-center justify-between shrink-0 sticky top-0 z-30">
@@ -68,6 +103,8 @@ export const OwnerLayout: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <ConnectionBadge />
+
           <IconButton
             aria-label={`Toggle theme (currently ${resolvedTheme})`}
             variant="ghost"
@@ -116,7 +153,12 @@ export const OwnerLayout: React.FC = () => {
                 }
               >
                 <Icon className="w-5 h-5 shrink-0" aria-hidden="true" />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {item.id === 'alerts' && openAlertsCount > 0 && (
+                  <span className="px-2 py-0.5 text-xs font-black rounded-full bg-red-500 text-white shrink-0 shadow-sm animate-pulse">
+                    {openAlertsCount}
+                  </span>
+                )}
               </NavLink>
             );
           })}
@@ -148,7 +190,14 @@ export const OwnerLayout: React.FC = () => {
                 }`
               }
             >
-              <Icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+              <div className="relative">
+                <Icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+                {item.id === 'alerts' && openAlertsCount > 0 && (
+                  <span className="absolute -top-1 -right-1.5 w-3.5 h-3.5 rounded-full bg-red-500 text-[9px] text-white font-bold flex items-center justify-center">
+                    {openAlertsCount}
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] mt-0.5 tracking-tight">{item.label}</span>
             </NavLink>
           );

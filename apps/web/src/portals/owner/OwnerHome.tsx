@@ -1,11 +1,34 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../../stores/useAuthStore.js';
 import { KpiCard, InsightCard, AlertCard } from '../../components/ui/Cards.js';
 import { DataTable, type Column } from '../../components/ui/DataTable.js';
 import { StatusPill, type OrderStatus } from '../../components/ui/StatusPill.js';
 import { Button } from '../../components/ui/Button.js';
 import { Dialog } from '../../components/ui/Overlay.js';
-import { formatPaiseToRupeeString } from '@restaurant-os/shared';
-import { DollarSign, Utensils, Users, Clock, Download } from 'lucide-react';
+import { ActionAlertCard } from '../../components/alerts-insights/ActionAlertCard.js';
+import { BusinessInsightCard } from '../../components/alerts-insights/BusinessInsightCard.js';
+import { AllClearState } from '../../components/alerts-insights/AllClearState.js';
+import {
+  formatPaiseToRupeeString,
+  type HealthScoreResult,
+  type AlertOutput,
+  type InsightOutput,
+} from '@restaurant-os/shared';
+import {
+  DollarSign,
+  Utensils,
+  Users,
+  Clock,
+  Download,
+  Activity,
+  ArrowRight,
+  TrendingUp,
+  TrendingDown,
+  AlertCircle,
+  Sparkles,
+} from 'lucide-react';
 import { useToastStore } from '../../stores/useToastStore.js';
 
 interface RecentOrderRow {
@@ -73,10 +96,82 @@ const mockOrders: RecentOrderRow[] = [
 ];
 
 export const OwnerHome: React.FC = () => {
+  const navigate = useNavigate();
   const { addToast } = useToastStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
   const [sortCol, setSortCol] = useState('time');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const { data: healthData } = useQuery<HealthScoreResult>({
+    queryKey: ['health-score'],
+    queryFn: () => apiFetch('/health-score'),
+    staleTime: 60000,
+  });
+
+  const { data: openAlerts = [], refetch: refetchAlerts } = useQuery<AlertOutput[]>({
+    queryKey: ['alerts', 'open'],
+    queryFn: () => apiFetch('/alerts?status=open'),
+    staleTime: 30000,
+  });
+
+  const { data: businessInsights = [], refetch: refetchInsights } = useQuery<InsightOutput[]>({
+    queryKey: ['insights'],
+    queryFn: () => apiFetch('/insights'),
+    staleTime: 60000,
+  });
+
+  const handleAcknowledgeAlert = async (alertId: string, note: string) => {
+    try {
+      await apiFetch(`/alerts/${alertId}/acknowledge`, {
+        method: 'POST',
+        body: JSON.stringify({ note }),
+      });
+      addToast({ message: 'Alert acknowledged and resolved', type: 'success' });
+      refetchAlerts();
+    } catch (err: any) {
+      addToast({ message: err.message || 'Failed to acknowledge alert', type: 'danger' });
+    }
+  };
+
+  const handleSnoozeAlert = async (alertId: string, duration: '1d' | '7d') => {
+    try {
+      await apiFetch(`/alerts/${alertId}/snooze`, {
+        method: 'POST',
+        body: JSON.stringify({ duration }),
+      });
+      addToast({ message: 'Alert snoozed', type: 'info' });
+      refetchAlerts();
+    } catch (err: any) {
+      addToast({ message: err.message || 'Failed to snooze alert', type: 'danger' });
+    }
+  };
+
+  const handleDismissAlert = async (alertId: string, reason: string) => {
+    try {
+      await apiFetch(`/alerts/${alertId}/dismiss`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      });
+      addToast({ message: 'Alert dismissed', type: 'info' });
+      refetchAlerts();
+    } catch (err: any) {
+      addToast({ message: err.message || 'Failed to dismiss alert', type: 'danger' });
+    }
+  };
+
+  const handleDismissInsight = async (insightId: string) => {
+    try {
+      await apiFetch(`/insights/${insightId}/dismiss`, {
+        method: 'POST',
+        body: JSON.stringify({ dismissed: true }),
+      });
+      addToast({ message: 'Insight dismissed', type: 'info' });
+      refetchInsights();
+    } catch (err: any) {
+      addToast({ message: err.message || 'Failed to dismiss insight', type: 'danger' });
+    }
+  };
 
   const handleSort = (colKey: string) => {
     if (sortCol === colKey) {
@@ -132,21 +227,98 @@ export const OwnerHome: React.FC = () => {
         </Button>
       </div>
 
-      {/* Critical Alert Notice if late orders spike */}
-      <AlertCard
-        severity="warning"
-        title="Kitchen Delay Alert on Table 07"
-        message="Order #ORD-2040 has exceeded the 15-minute preparation threshold by 6 minutes."
-        action={
+      {/* ATTENTION REQUIRED (Action-Only Alerts) */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-500" />
+            <h3 className="text-subhead font-extrabold text-content-primary">ATTENTION REQUIRED</h3>
+            {openAlerts.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-red-500 text-white shadow-sm">
+                {openAlerts.length}
+              </span>
+            )}
+          </div>
+
+          {openAlerts.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setShowAllAlerts(!showAllAlerts)}
+              className="text-xs font-bold text-accent hover:underline"
+            >
+              {showAllAlerts ? 'Show less (5)' : `Show all (${openAlerts.length})`}
+            </button>
+          )}
+        </div>
+
+        {openAlerts.length === 0 ? (
+          <AllClearState />
+        ) : (
+          <div className="space-y-3">
+            {(showAllAlerts ? openAlerts : openAlerts.slice(0, 5)).map((alert) => (
+              <ActionAlertCard
+                key={alert.id}
+                alert={alert}
+                onAcknowledge={handleAcknowledgeAlert}
+                onSnooze={handleSnoozeAlert}
+                onDismiss={handleDismissAlert}
+                onNavigateAction={(url) => navigate(url)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Compact Health Score Card */}
+      {healthData && healthData.overallScore !== null && (
+        <div className="bg-surface-card border border-surface-border rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-baseline gap-1.5">
+              <span
+                className={`text-headline font-black ${
+                  healthData.scoreBand === 'strong'
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : healthData.scoreBand === 'stable'
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : healthData.scoreBand === 'needs_attention'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-red-600 dark:text-red-400'
+                }`}
+              >
+                {healthData.overallScore}
+              </span>
+              <span className="text-xs text-content-muted font-bold">/ 100</span>
+            </div>
+
+            <div className="border-l border-surface-border pl-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-content-primary">
+                  Restaurant Health Score
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-surface-elevated text-content-secondary border border-surface-border">
+                  {healthData.scoreBand.replace('_', ' ')}
+                </span>
+              </div>
+              <p className="text-[11px] text-content-secondary mt-0.5">
+                {healthData.reasonsForChange.length > 0
+                  ? healthData.reasonsForChange[0]!.explanation
+                  : `Evaluated across ${healthData.factorsUsedCount} operational factors.`}
+              </p>
+            </div>
+          </div>
+
           <Button
-            variant="outline"
+            type="button"
+            variant="ghost"
             size="sm"
-            onClick={() => addToast({ message: 'Kitchen manager notified', type: 'info' })}
+            onClick={() => navigate('/owner/health')}
+            className="text-xs font-bold text-accent flex items-center gap-1 shrink-0 hover:bg-accent/10"
           >
-            Notify Kitchen
+            <span>View Health Breakdown</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Button>
-        }
-      />
+        </div>
+      )}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -179,16 +351,37 @@ export const OwnerHome: React.FC = () => {
         />
       </div>
 
-      {/* AI / Heuristic Insight Card */}
-      <InsightCard
-        tag="Revenue Optimization"
-        title="High Beverage Attachment Opportunity in Terrace Section"
-        description="Terrace tables average 38% longer dwell time but 22% lower beverage re-orders. Training servers to prompt dessert & drink refills at the 30-minute mark can yield ~₹8,400 added daily revenue."
-        actionText="Apply Shift Briefing Note"
-        onAction={() =>
-          addToast({ message: 'Shift note queued for floor briefing', type: 'success' })
-        }
-      />
+      {/* Business Insights (Max 6, Ranked by Materiality, Evidence Backed) */}
+      {businessInsights.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-500" />
+              <h3 className="text-subhead font-extrabold text-content-primary">
+                Daily Business Insights
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/owner/insights')}
+              className="text-xs font-bold text-accent hover:underline flex items-center gap-1"
+            >
+              <span>View All Insights</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {businessInsights.map((insight) => (
+              <BusinessInsightCard
+                key={insight.id}
+                insight={insight}
+                onDismiss={handleDismissInsight}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Real-time Order Log */}
       <div>

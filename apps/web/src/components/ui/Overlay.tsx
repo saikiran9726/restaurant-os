@@ -98,6 +98,7 @@ export interface DialogProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 export const Dialog: React.FC<DialogProps> = ({
@@ -108,6 +109,7 @@ export const Dialog: React.FC<DialogProps> = ({
   children,
   footer,
   className = '',
+  size = 'lg',
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -127,6 +129,13 @@ export const Dialog: React.FC<DialogProps> = ({
 
   if (!isOpen) return null;
 
+  const sizeStyles = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+  }[size];
+
   return (
     <div
       role="dialog"
@@ -142,7 +151,7 @@ export const Dialog: React.FC<DialogProps> = ({
       />
 
       <div
-        className={`relative z-10 w-full max-w-lg rounded-xl bg-surface-card border border-surface-border p-6 shadow-2xl transition-all ${className}`}
+        className={`relative z-10 w-full ${sizeStyles} rounded-xl bg-surface-card border border-surface-border p-6 shadow-2xl transition-all ${className}`}
       >
         <div className="flex items-start justify-between pb-3">
           <div>

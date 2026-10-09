@@ -43,3 +43,6 @@ test-results/
 
 # Turborepo / Cache
 .turbo/
+
+# TypeScript build cache
+*.tsbuildinfo

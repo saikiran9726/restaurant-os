@@ -78,3 +78,67 @@ export function serializeOrderForRole(
   }
   return order;
 }
+
+// ==========================================
+// MENU SHAPING PER ROLE
+// ==========================================
+
+export interface MenuItemView {
+  id: string;
+  categoryId: string;
+  categoryName?: string;
+  name: string;
+  aliases: string[];
+  isVeg: boolean;
+  pricePaise?: number; // Present for OWNER, WAITER, CASHIER; OMITTED for KITCHEN
+  available: boolean;
+  oosReason?: string | null;
+  sortOrder: number;
+  modifierGroupIds?: string[];
+  version?: number;
+}
+
+export interface KitchenMenuItemView {
+  id: string;
+  categoryId: string;
+  categoryName?: string;
+  name: string;
+  aliases: string[];
+  isVeg: boolean;
+  available: boolean;
+  oosReason?: string | null;
+  sortOrder: number;
+}
+
+/**
+ * Sanitizes a single menu item for the kitchen role (removes pricePaise, taxRateBp).
+ */
+export function serializeKitchenMenuItem(item: MenuItemView): KitchenMenuItemView {
+  return {
+    id: item.id,
+    categoryId: item.categoryId,
+    categoryName: item.categoryName,
+    name: item.name,
+    aliases: item.aliases,
+    isVeg: item.isVeg,
+    available: item.available,
+    oosReason: item.oosReason,
+    sortOrder: item.sortOrder,
+  };
+}
+
+/**
+ * Serializes menu items based on caller role.
+ * If role is KITCHEN, pricePaise is omitted completely.
+ */
+export function serializeMenuForRole(
+  items: MenuItemView[],
+  role: string,
+): (KitchenMenuItemView | MenuItemView)[] {
+  if (role.toUpperCase() === 'KITCHEN') {
+    return items.map(serializeKitchenMenuItem);
+  }
+  return items;
+}
+
+export * from './kitchen-state.js';

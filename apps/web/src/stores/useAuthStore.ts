@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { UserProfile } from '@restaurant-os/shared';
+import { useConnectionStore } from './useConnectionStore.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -134,7 +135,8 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
   const store = useAuthStore.getState();
   let token = store.accessToken;
 
-  const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+  const baseUrl = useConnectionStore.getState().getBaseUrl();
+  const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
   const headers = new Headers(options.headers || {});
   headers.set('Accept', 'application/json');
   if (token) {

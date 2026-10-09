@@ -42,7 +42,26 @@ export async function authenticate(request: FastifyRequest, _reply: FastifyReply
   try {
     const payload = verifyAccessToken(token);
     request.user = payload;
-  } catch (err) {
+
+    // Multi-tenant header validation & security telemetry
+    const clientTenantHeader = request.headers['x-restaurant-id'] as string | undefined;
+    if (clientTenantHeader && clientTenantHeader !== payload.restaurantId) {
+      request.log.warn(
+        {
+          userId: payload.userId,
+          tokenTenant: payload.restaurantId,
+          headerTenant: clientTenantHeader,
+        },
+        'Cross-tenant manipulation attempt detected via X-Restaurant-Id',
+      );
+      throw AppError.forbidden(
+        'TENANT_MISMATCH: Target restaurant does not match authentication context',
+      );
+    }
+  } catch (err: any) {
+    if (err instanceof AppError) {
+      throw err;
+    }
     request.log.warn({ err }, 'Token verification failed');
     throw AppError.unauthorized('Invalid or expired access token');
   }

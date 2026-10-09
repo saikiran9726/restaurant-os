@@ -11,6 +11,25 @@ import { registerVersionRoutes } from './routes/version.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerStaffRoutes } from './routes/staff.js';
 import { registerAuditRoutes } from './routes/audit.js';
+import { registerSettingsRoutes } from './routes/settings.js';
+import { registerTablesRoutes } from './routes/tables.js';
+import { registerCategoryRoutes } from './routes/categories.js';
+import { registerModifiersRoutes } from './routes/modifiers.js';
+import { registerMenuRoutes } from './routes/menu.js';
+import { registerOrderRoutes } from './routes/orders.js';
+import { registerKotRoutes } from './routes/kots.js';
+import { billsRoutes } from './routes/bills.js';
+import { registerPrinterRoutes } from './routes/printers.js';
+import { registerCustomerRoutes } from './routes/customers.js';
+import { registerLoyaltyRoutes } from './routes/loyalty.js';
+import { reportsRoutes } from './routes/reports.js';
+import { eodRoutes } from './routes/eod.js';
+import { inventoryRoutes } from './routes/inventory.js';
+import { expensesRoutes } from './routes/expenses.js';
+import { healthScoreRoutes } from './routes/health-score.js';
+import { alertsInsightsRoutes } from './routes/alerts-insights.js';
+import { syncRoutes } from './routes/sync.js';
+import { initRealtimeServer } from './realtime/socket.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const isDev = env.NODE_ENV === 'development';
@@ -82,6 +101,27 @@ export async function buildServer(): Promise<FastifyInstance> {
   await registerAuthRoutes(app);
   await registerStaffRoutes(app);
   await registerAuditRoutes(app);
+  await registerSettingsRoutes(app);
+  await registerTablesRoutes(app);
+  await registerCategoryRoutes(app);
+  await registerModifiersRoutes(app);
+  await registerMenuRoutes(app);
+  await registerOrderRoutes(app);
+  await registerKotRoutes(app);
+  await billsRoutes(app);
+  await registerPrinterRoutes(app);
+  await registerCustomerRoutes(app);
+  await registerLoyaltyRoutes(app);
+  await reportsRoutes(app);
+  await eodRoutes(app);
+  await inventoryRoutes(app);
+  await expensesRoutes(app);
+  await healthScoreRoutes(app);
+  await alertsInsightsRoutes(app);
+  await syncRoutes(app);
+
+  // Initialize Realtime Socket.IO Layer
+  initRealtimeServer(app);
 
   return app;
 }

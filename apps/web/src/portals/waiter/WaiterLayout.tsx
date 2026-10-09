@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import { LayoutGrid, Utensils, Receipt, Bell, ArrowLeft, Sun, Moon } from 'lucide-react';
-import { ConnectionBanner } from '../../components/ConnectionBanner.js';
+import { SyncBanner } from '../../components/SyncBanner.js';
 import { useThemeStore } from '../../stores/useThemeStore.js';
 import { IconButton } from '../../components/ui/Button.js';
 
@@ -25,7 +25,7 @@ export const WaiterLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-canvas text-content-primary">
-      <ConnectionBanner />
+      <SyncBanner />
 
       {/* Top Header */}
       <header className="h-16 px-4 md:px-6 border-b border-surface-border bg-surface-card flex items-center justify-between shrink-0 sticky top-0 z-30">

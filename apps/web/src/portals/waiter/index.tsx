@@ -17,16 +17,7 @@ const WaiterOrders: React.FC = () => (
   </div>
 );
 
-const WaiterBill: React.FC = () => (
-  <div className="space-y-4">
-    <h2 className="text-title font-bold text-content-primary">Quick Billing</h2>
-    <EmptyState
-      icon={<Receipt className="w-8 h-8" />}
-      title="No pending bills"
-      description="Select an occupied table from the tables view to generate the final receipt."
-    />
-  </div>
-);
+import { BillHistoryView } from '../../components/BillHistoryView.js';
 
 const WaiterAlerts: React.FC = () => (
   <div className="space-y-4">
@@ -46,7 +37,7 @@ export default function WaiterPortal(): React.JSX.Element {
         <Route element={<WaiterLayout />}>
           <Route index element={<WaiterHome />} />
           <Route path="orders" element={<WaiterOrders />} />
-          <Route path="bill" element={<WaiterBill />} />
+          <Route path="bill" element={<BillHistoryView />} />
           <Route path="alerts" element={<WaiterAlerts />} />
         </Route>
       </Routes>
